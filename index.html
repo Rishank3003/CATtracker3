@@ -537,6 +537,14 @@ option { background: var(--bg3); }
     <div class="card-title">Target progress</div>
     <div id="dash-targets"></div>
   </div>
+  <div class="card">
+    <div class="card-title">Brain Power Meter ⚡</div>
+    <div id="brain-meter"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Achievements 🏆</div>
+    <div id="achievements-display"></div>
+  </div>
 </section>
 
 <!-- MOCK TESTS -->
@@ -1029,7 +1037,19 @@ const DEFAULT_STATE = {
     { date: '2026-07-18', section: 'CRACKUDILR', sectionalNum: 1, score: 32, name: 'CRACKUDILR — Sectional 1' },
     { date: '2026-07-20', section: 'CRACKUQA', sectionalNum: 1, score: 42, name: 'CRACKUQA — Sectional 1' }
   ],
-  customSections: ['CRACKUV', 'CRACKUDILR', 'CRACKUQA']
+  customSections: ['CRACKUV', 'CRACKUDILR', 'CRACKUQA'],
+  achievements: {
+    firstMock: false,
+    firstScore95: false,
+    sectionalMastery: false,
+    accuracyMaster: false,
+    consistencyKing: false,
+    streakFire: false,
+    percentileClimber: false,
+    perfectTiming: false,
+    focusMaster: false,
+    studyBuddy: false
+  }
 };
 
 function deepMerge(target, source) {
@@ -1311,6 +1331,150 @@ function mkChart(id, config) {
   charts[id] = new Chart(el, config);
 }
 
+// ─── ACHIEVEMENTS & FUN VISUALIZATIONS ──────────────────────────────
+function checkAchievements() {
+  if (!S.achievements) S.achievements = {};
+  
+  // First Mock
+  if (S.mocks.length > 0 && !S.achievements.firstMock) {
+    S.achievements.firstMock = true;
+  }
+  
+  // Score 95+
+  const hasScore95 = (S.mocks || []).some(m => (m.varc+m.dilr+m.qa) >= 95);
+  if (hasScore95 && !S.achievements.firstScore95) {
+    S.achievements.firstScore95 = true;
+  }
+  
+  // Sectional Mastery (40+ in any section)
+  const hasMastery = (S.mocks || []).some(m => m.varc >= 40 || m.dilr >= 40 || m.qa >= 40);
+  if (hasMastery && !S.achievements.sectionalMastery) {
+    S.achievements.sectionalMastery = true;
+  }
+  
+  // Accuracy Master (80%+ accuracy in topics)
+  const allTopics = S.topics || [];
+  const hasAccuracy = allTopics.some(t => t.attempts > 0 && (t.correct/t.attempts)*100 >= 80);
+  if (hasAccuracy && !S.achievements.accuracyMaster) {
+    S.achievements.accuracyMaster = true;
+  }
+  
+  // Streak Fire (7+ mocks)
+  if (S.mocks.length >= 7 && !S.achievements.streakFire) {
+    S.achievements.streakFire = true;
+  }
+  
+  // Percentile Climber (percentile 85+)
+  const hasHighPct = (S.mocks || []).some(m => m.percentile && m.percentile >= 85);
+  if (hasHighPct && !S.achievements.percentileClimber) {
+    S.achievements.percentileClimber = true;
+  }
+  
+  // Focus Master (mock score > 100)
+  const hasFocus = (S.mocks || []).some(m => (m.varc+m.dilr+m.qa) >= 100);
+  if (hasFocus && !S.achievements.focusMaster) {
+    S.achievements.focusMaster = true;
+  }
+  
+  // Study Buddy (10+ mocks)
+  if (S.mocks.length >= 10 && !S.achievements.studyBuddy) {
+    S.achievements.studyBuddy = true;
+  }
+  
+  save();
+}
+
+function getFunnyMessage() {
+  const maxSimcat = getMaxSimcatScores();
+  if (!maxSimcat) return "Start your first mock to unlock motivation! 🚀";
+  
+  const total = maxSimcat.varc + maxSimcat.dilr + maxSimcat.qa;
+  
+  if (total >= 110) return "YOU ABSOLUTE LEGEND! 🔥🔥🔥 The CAT has NO CHANCE!";
+  if (total >= 100) return "Pretty solid! Your brain is on FIRE! 💪⚡";
+  if (total >= 90) return "Nice work! Keep grinding! You're SO close! 💯";
+  if (total >= 80) return "Not bad! The comeback is coming! 🚀";
+  if (total >= 70) return "It's just practice mode - you got this! 💡";
+  return "Every mock makes you smarter! 📈✨";
+}
+
+function renderBrainMeter() {
+  const hours = fmt(totalHours());
+  const mocks = S.mocks.length;
+  const accuracy = (() => {
+    const topics = S.topics || [];
+    const totalAttempts = topics.reduce((a,t) => a+t.attempts, 0);
+    if (totalAttempts === 0) return 0;
+    const totalCorrect = topics.reduce((a,t) => a+t.correct, 0);
+    return Math.round(totalCorrect/totalAttempts*100);
+  })();
+  
+  const emojis = ['🧠','💭','⚡','🔥','💪','🎯','🚀','✨'];
+  const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+  
+  const brainPower = Math.min(100, Math.round((hours.replace('h','') * 5 + mocks * 3) / 2));
+  
+  return `
+    <div style="margin:12px 0">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;color:var(--text2)">Brain Power: ${brainPower}%</span>
+        <span style="font-size:13px">${randomEmoji}</span>
+      </div>
+      <div style="background:var(--border2);height:24px;border-radius:8px;overflow:hidden">
+        <div style="background:linear-gradient(90deg,#e8c97a,#7ab8e8,#7ae8b0);width:${brainPower}%;height:100%;transition:width 0.3s" />
+      </div>
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:var(--text2);text-align:center;font-style:italic">
+      ${getFunnyMessage()}
+    </div>
+    <div style="margin-top:12px;display:flex;gap:16px;justify-content:center;font-size:11px;color:var(--text3)">
+      <div>📚 ${mocks} Mocks</div>
+      <div>⏱ ${hours} Studied</div>
+      <div>🎯 ${accuracy}% Accuracy</div>
+    </div>
+  `;
+}
+
+function renderAchievements() {
+  checkAchievements();
+  
+  const badges = [
+    { id: 'firstMock', title: 'First Mock Warrior', emoji: '⚔️', desc: 'Completed your first mock' },
+    { id: 'firstScore95', title: 'Legend Status', emoji: '👑', desc: 'Scored 95+' },
+    { id: 'sectionalMastery', title: 'Sectional Master', emoji: '🧠', desc: 'Scored 40+ in any section' },
+    { id: 'accuracyMaster', title: 'Accuracy King', emoji: '🎯', desc: '80%+ accuracy in topics' },
+    { id: 'streakFire', title: 'Streak Fire 🔥', emoji: '🔥', desc: '7 mocks completed' },
+    { id: 'percentileClimber', title: 'Percentile Climber', emoji: '📈', desc: 'Reached 85+ percentile' },
+    { id: 'focusMaster', title: 'Focus Master', emoji: '💪', desc: 'Scored 100+' },
+    { id: 'studyBuddy', title: 'Study Buddy', emoji: '👥', desc: '10 mocks completed' }
+  ];
+  
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:12px">';
+  
+  badges.forEach(badge => {
+    const unlocked = S.achievements && S.achievements[badge.id];
+    html += `
+      <div style="
+        background:${unlocked ? 'rgba(232,201,122,0.1)' : 'rgba(100,100,100,0.2)'};
+        border:2px solid ${unlocked ? '#e8c97a' : 'var(--border2)'};
+        border-radius:12px;
+        padding:12px;
+        text-align:center;
+        cursor:help;
+        opacity:${unlocked ? '1' : '0.5'};
+        transition:all 0.3s;
+      " title="${badge.desc}">
+        <div style="font-size:32px;margin-bottom:4px">${badge.emoji}</div>
+        <div style="font-size:10px;font-weight:600;color:var(--text2)">${badge.title}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:4px">${unlocked ? '✓ Unlocked' : 'Locked'}</div>
+      </div>
+    `;
+  });
+  
+  html += '</div>';
+  return html;
+}
+
 // ─── DASHBOARD ───────────────────────────────────────────────────────
 function renderDashboard() {
   const now = new Date();
@@ -1388,6 +1552,12 @@ function renderDashboard() {
     </div>`;
   }).join('');
   document.getElementById('dash-targets').innerHTML = tpHTML;
+  
+  // Render Brain Meter
+  document.getElementById('brain-meter').innerHTML = renderBrainMeter();
+  
+  // Render Achievements
+  document.getElementById('achievements-display').innerHTML = renderAchievements();
 }
 
 // ─── STUDY LOG ───────────────────────────────────────────────────────
