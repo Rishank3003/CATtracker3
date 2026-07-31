@@ -2049,13 +2049,7 @@ function getMaxSimcatScores() {
   
   if (simcatMocks.length === 0) return null;
   
-  // True maximum in each section independently, across all SIMCATs
-  const maxVarc = Math.max(...simcatMocks.map(m => m.varc || 0));
-  const maxDilr = Math.max(...simcatMocks.map(m => m.dilr || 0));
-  const maxQa = Math.max(...simcatMocks.map(m => m.qa || 0));
-  const maxPercentile = Math.max(...simcatMocks.map(m => m.percentile || 0));
-  
-  // Best overall (highest total) mock, for reference
+  // Best overall (highest total) mock — ALL scores below come from this ONE test
   let bestMock = null;
   let bestTotal = 0;
   simcatMocks.forEach(m => {
@@ -2066,12 +2060,14 @@ function getMaxSimcatScores() {
     }
   });
   
+  if (!bestMock) return null;
+  
   return {
-    varc: maxVarc,
-    dilr: maxDilr,
-    qa: maxQa,
-    percentile: maxPercentile,
-    total: maxVarc + maxDilr + maxQa,
+    varc: bestMock.varc || 0,
+    dilr: bestMock.dilr || 0,
+    qa: bestMock.qa || 0,
+    percentile: bestMock.percentile || 0,
+    total: bestTotal,
     bestOverallTotal: bestTotal,
     bestOverallMock: bestMock
   };
