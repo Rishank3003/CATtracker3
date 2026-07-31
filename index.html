@@ -779,7 +779,7 @@ option { background: var(--bg3); }
 <section class="page" id="page-sectionals">
   <div class="page-header">
     <h2>Sectional test schedule</h2>
-    <p>CAT 2026 · 30 sectionals (10 VA + 10 DILR + 10 Quant)</p>
+    <p>CAT 2026 · Track all sectionals with scores and progress</p>
   </div>
   
   <div class="card">
@@ -799,23 +799,36 @@ option { background: var(--bg3); }
       </div>
       <div class="form-field">
         <label>Sectional #</label>
-        <input type="number" id="sec-num" min="1" max="10" placeholder="1-10" />
+        <input type="number" id="sec-num" min="1" placeholder="1-10 (or more)" />
       </div>
       <div class="form-field">
         <label>Score</label>
         <input type="number" id="sec-score" min="0" placeholder="0" />
       </div>
-      <button class="btn" onclick="addSectionalScore()">Add</button>
+      <button class="btn" onclick="addSectionalScore()">Add Score</button>
     </div>
   </div>
 
+  <!-- VARC Section -->
   <div class="card">
-    <div class="card-title">Sectional scores</div>
-    <div id="sectional-scores-list"></div>
+    <div class="card-title">VARC (Verbal & Reading Comprehension)</div>
+    <div class="chart-wrap" style="height:250px;margin-bottom:20px"><canvas id="chart-varc-sectional"></canvas></div>
+    <div id="varc-sectional-list"></div>
   </div>
 
-  <div class="metric-grid" id="sectionals-metrics"></div>
-  <div id="sectionals-list"></div>
+  <!-- DILR Section -->
+  <div class="card">
+    <div class="card-title">DILR (Data & Logic)</div>
+    <div class="chart-wrap" style="height:250px;margin-bottom:20px"><canvas id="chart-dilr-sectional"></canvas></div>
+    <div id="dilr-sectional-list"></div>
+  </div>
+
+  <!-- Quant Section -->
+  <div class="card">
+    <div class="card-title">Quant (Quantitative)</div>
+    <div class="chart-wrap" style="height:250px;margin-bottom:20px"><canvas id="chart-quant-sectional"></canvas></div>
+    <div id="quant-sectional-list"></div>
+  </div>
 </section>
 
 <!-- SETTINGS -->
@@ -2349,41 +2362,71 @@ function cycleMockStatus(i) {
 function renderSectionals() {
   document.getElementById('sec-date').valueAsDate = new Date();
   
-  const plan = S.sectionalPlan || [];
-  const counts = { pending:0, completed:0, analysed:0 };
-  plan.forEach(s => counts[s.status] = (counts[s.status]||0) + 1);
+  // Render each section separately
+  renderSectionTable('VARC');
+  renderSectionTable('DILR');
+  renderSectionTable('Quant');
+}
 
-  document.getElementById('sectionals-metrics').innerHTML = [
-    { label:'Total sectionals', val: plan.length, sub:'scheduled' },
-    { label:'Pending', val: counts.pending, sub:'to attempt' },
-    { label:'Completed', val: counts.completed, sub:'taken' },
-    { label:'Analysed', val: counts.analysed, sub:'reviewed' }
-  ].map(m => `<div class="metric-card"><div class="metric-label">${m.label}</div><div class="metric-val">${m.val}</div><div class="metric-sub">${m.sub}</div></div>`).join('');
-
-  const months = {};
-  plan.forEach((s, i) => {
-    const mo = new Date(s.date + 'T00:00:00').toLocaleString('default', { month:'long', year:'numeric' });
-    if (!months[mo]) months[mo] = [];
-    months[mo].push({ s, i });
-  });
-
-  let html = '';
-  Object.entries(months).forEach(([mo, items]) => {
-    html += `<div class="card" style="margin-bottom:12px">
-      <div class="card-title">${mo}</div>`;
-    items.forEach(({ s, i }) => {
-      const sm = SECTIONAL_META[s.section] || { color:'var(--text3)' };
-      html += `<div class="data-row" style="gap:10px;align-items:center">
-        <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);width:70px;flex-shrink:0">${niceDate2(s.date)}</span>
-        <span style="width:8px;height:8px;border-radius:50%;background:${sm.color};flex-shrink:0"></span>
-        <span style="flex:1;font-size:13px;min-width:120px">${s.name}</span>
-        <button onclick="cycleSectionalStatus(${i})" style="background:none;border:none;cursor:pointer;padding:0;display:flex;gap:4px;flex-wrap:wrap">${statusBar(s.status)}</button>
-      </div>`;
+function renderSectionTable(section) {
+  const scores = S.sectionalScores || [];
+  const sectionScores = scores.filter(s => s.section === section).sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  const canvasId = `chart-${section.toLowerCase()}-sectional`;
+  const tableId = `${section.toLowerCase()}-sectional-list`;
+  
+  // Render chart
+  if (sectionScores.length > 0) {
+    mkChart(canvasId, {
+      type: 'line',
+      data: {
+        labels: sectionScores.map(s => `Sectional ${s.sectionalNum}`),
+        datasets: [{
+          label: section + ' Scores',
+          data: sectionScores.map(s => s.score),
+          borderColor: section === 'VARC' ? '#e8c97a' : section === 'DILR' ? '#7ab8e8' : '#7ae8b0',
+          backgroundColor: section === 'VARC' ? 'rgba(232,201,122,0.1)' : section === 'DILR' ? 'rgba(122,184,232,0.1)' : 'rgba(122,232,176,0.1)',
+          tension: 0.4,
+          pointRadius: 5,
+          fill: true,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        ...CHART_DEFAULTS,
+        plugins: { legend: { display: false } },
+        scales: { ...CHART_DEFAULTS.scales, y: { ...CHART_DEFAULTS.scales.y, beginAtZero: true } }
+      }
     });
-    html += `</div>`;
-  });
-  document.getElementById('sectionals-list').innerHTML = html;
-  renderSectionalScoresList();
+  } else {
+    const wrap = document.getElementById(canvasId).parentElement;
+    if (wrap) wrap.innerHTML = '<div class="empty-state" style="height:250px;display:flex;align-items:center;justify-content:center">No scores yet</div>';
+  }
+  
+  // Render table
+  let html = `<div class="data-row" style="gap:10px;border-bottom:1px solid var(--border2)">
+    <span style="flex:1;font-size:10px;color:var(--text3);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.5px">Sectional #</span>
+    <span style="color:var(--text3);font-family:var(--font-mono);font-size:10px;width:50px;text-align:center">SCORE</span>
+    <span style="font-size:10px;color:var(--text3);font-family:var(--font-mono);width:80px">DATE</span>
+    <span style="width:28px"></span>
+  </div>`;
+  
+  if (sectionScores.length === 0) {
+    html += '<div style="color:var(--text3);font-size:13px;padding:10px 0">No scores added yet</div>';
+  } else {
+    html += sectionScores.map((score) => {
+      // Find the actual index in S.sectionalScores
+      const actualIndex = S.sectionalScores.findIndex(s => s.date === score.date && s.section === score.section && s.sectionalNum === score.sectionalNum);
+      return `<div class="data-row" style="gap:10px">
+        <span style="flex:1;font-size:13px;font-weight:500">Sectional ${score.sectionalNum}</span>
+        <span style="font-weight:600;font-size:14px;color:var(--accent);width:50px;text-align:center">${score.score}</span>
+        <span style="font-size:11px;color:var(--text3);width:80px">${score.date}</span>
+        <button class="btn btn-ghost btn-sm" onclick="deleteSectionalScore(${actualIndex})" style="padding:3px 8px;font-size:11px;width:28px">✕</button>
+      </div>`;
+    }).join('');
+  }
+  
+  document.getElementById(tableId).innerHTML = html;
 }
 
 function cycleSectionalStatus(i) {
@@ -2400,8 +2443,8 @@ function addSectionalScore() {
   const num = parseInt(document.getElementById('sec-num').value) || 0;
   const score = parseInt(document.getElementById('sec-score').value) || 0;
   
-  if (!date || num < 1 || num > 10 || score < 0) {
-    alert('Please enter valid date, sectional number (1-10), and score (>= 0).');
+  if (!date || num < 1 || score < 0) {
+    alert('Please enter valid date, sectional number, and score (>= 0).');
     return;
   }
   
@@ -2427,46 +2470,16 @@ function addSectionalScore() {
   }
   
   save();
-  renderSectionalScoresList();
   renderSectionals();
   
   document.getElementById('sec-num').value = '';
   document.getElementById('sec-score').value = '';
 }
 
-function renderSectionalScoresList() {
-  const scores = S.sectionalScores || [];
-  if (!scores.length) {
-    document.getElementById('sectional-scores-list').innerHTML = '<div style="color:var(--text3);font-size:13px">No sectional scores yet.</div>';
-    return;
-  }
-  
-  const sortedScores = [...scores].sort((a, b) => new Date(a.date) - new Date(b.date));
-  
-  let html = `<div class="data-row" style="gap:10px;border-bottom:1px solid var(--border2)">
-    <span style="flex:1;font-size:10px;color:var(--text3);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.5px">Section</span>
-    <span style="color:var(--text3);font-family:var(--font-mono);font-size:10px;width:50px;text-align:center">SCORE</span>
-    <span style="font-size:10px;color:var(--text3);font-family:var(--font-mono);width:80px">DATE</span>
-    <span style="width:28px"></span>
-  </div>`;
-  
-  html += sortedScores.map((score, idx) => {
-    const sectionColors = { 'VARC': 'var(--varc)', 'DILR': 'var(--dilr)', 'Quant': 'var(--quant)' };
-    return `<div class="data-row" style="gap:10px">
-      <span style="flex:1;font-size:13px;font-weight:500;color:${sectionColors[score.section]}">${score.name}</span>
-      <span style="font-weight:600;font-size:14px;color:var(--accent);width:50px;text-align:center">${score.score}</span>
-      <span style="font-size:11px;color:var(--text3);width:80px">${score.date}</span>
-      <button class="btn btn-ghost btn-sm" onclick="deleteSectionalScore(${idx})" style="padding:3px 8px;font-size:11px;width:28px">✕</button>
-    </div>`;
-  }).join('');
-  
-  document.getElementById('sectional-scores-list').innerHTML = html;
-}
-
 function deleteSectionalScore(i) {
   S.sectionalScores.splice(i, 1);
   save();
-  renderSectionalScoresList();
+  renderSectionals();
 }
 
 // ─── SETTINGS ────────────────────────────────────────────────────────
