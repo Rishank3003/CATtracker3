@@ -2328,20 +2328,7 @@ function cycleMockStatus(i) {
   const cur = STATUS_CYCLE.indexOf(m.status);
   const next = STATUS_CYCLE[(cur + 1) % STATUS_CYCLE.length];
   m.status = next;
-
-  // When marked completed, prompt for scores and add to Mock Tests
-  if (next === 'completed' && !m.linkedMock) {
-    const addScores = confirm(`Marked "${m.name}" as completed.\n\nAdd your scores now? (OK = enter scores, Cancel = just mark done)`);
-    if (addScores) {
-      const varc = parseInt(prompt('VARC score (out of 72):', '')) || 0;
-      const dilr = parseInt(prompt('DILR score (out of 60):', '')) || 0;
-      const qa   = parseInt(prompt('QA score (out of 66):', '')) || 0;
-      const pctRaw = prompt('Overall percentile (optional, leave blank to skip):', '');
-      const pct = pctRaw ? parseFloat(pctRaw) : null;
-      S.mocks.push({ date: m.date, name: m.name, varc, dilr, qa, percentile: pct });
-      m.linkedMock = true;
-    }
-  }
+  
   save();
   renderMockPlan();
 }
