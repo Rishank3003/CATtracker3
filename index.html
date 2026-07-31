@@ -1743,17 +1743,40 @@ function addMock() {
   };
   S.mocks.push(m); 
   
-  // Auto-mark the mock as completed in mock plan
-  if (S.mockPlan) {
-    const matchingMock = S.mockPlan.find(plan => 
-      plan.date === m.date || plan.name.toLowerCase() === m.name.toLowerCase()
-    );
+  // Auto-mark the mock as completed in mock plan - improved matching
+  if (S.mockPlan && S.mockPlan.length > 0) {
+    // Try multiple matching strategies
+    let matchingMock = S.mockPlan.find(plan => plan.date === m.date);
+    
+    // If date didn't match, try name matching
+    if (!matchingMock) {
+      const nameLower = m.name.toLowerCase().trim();
+      matchingMock = S.mockPlan.find(plan => {
+        const planNameLower = plan.name.toLowerCase().trim();
+        // Check if name contains the mock name or vice versa
+        return planNameLower.includes(nameLower) || nameLower.includes(planNameLower);
+      });
+    }
+    
     if (matchingMock) {
       matchingMock.status = 'completed';
+      console.log('✓ Synced mock to plan:', matchingMock.name);
+    } else {
+      console.log('ℹ No matching mock in plan. You may need to add it to the Mock Schedule first.');
     }
+  } else {
+    console.log('ℹ Mock Plan not initialized yet');
   }
   
-  save(); renderMocks();
+  save(); 
+  renderMocks();
+  
+  // Also refresh the mock plan if visible
+  const currentPage = document.querySelector('.page.active');
+  if (currentPage && currentPage.id === 'page-mockplan') {
+    renderMockPlan();
+  }
+  
   document.getElementById('m-name').value='';
   document.getElementById('m-pct').value='';
 }
