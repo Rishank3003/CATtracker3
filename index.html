@@ -1110,8 +1110,12 @@ const DEFAULT_STATE = {
     ];
     return rows.map((r,i) => ({ id:'s'+i, date:r[0], name:r[1], section:r[2], status:'pending' }));
   })(),
-  sectionalScores: [],
-  customSections: []
+  sectionalScores: [
+    { date: '2026-07-15', section: 'CRACKUV', sectionalNum: 1, score: 38, name: 'CRACKUV — Sectional 1' },
+    { date: '2026-07-18', section: 'CRACKUDILR', sectionalNum: 1, score: 32, name: 'CRACKUDILR — Sectional 1' },
+    { date: '2026-07-20', section: 'CRACKUQA', sectionalNum: 1, score: 42, name: 'CRACKUQA — Sectional 1' }
+  ],
+  customSections: ['CRACKUV', 'CRACKUDILR', 'CRACKUQA']
 };
 
 function deepMerge(target, source) {
