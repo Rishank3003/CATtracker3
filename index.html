@@ -525,10 +525,6 @@ option { background: var(--bg3); }
   <div class="metric-grid" id="dash-metrics"></div>
   <div class="charts-row">
     <div class="card">
-      <div class="card-title">Weekly study hours</div>
-      <div class="chart-wrap" style="height:180px"><canvas id="hoursChart" role="img" aria-label="Weekly study hours bar chart">Weekly study hours.</canvas></div>
-    </div>
-    <div class="card">
       <div class="card-title">Mock score trend</div>
       <div class="chart-wrap" style="height:180px"><canvas id="scoreChart" role="img" aria-label="Mock score line chart">Mock test scores.</canvas></div>
     </div>
@@ -536,6 +532,10 @@ option { background: var(--bg3); }
   <div class="card">
     <div class="card-title">Target progress</div>
     <div id="dash-targets"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Score targets 🎯</div>
+    <div class="target-grid" id="dash-target-cards"></div>
   </div>
   <div class="card">
     <div class="card-title">Brain Power Meter ⚡</div>
@@ -1082,6 +1082,7 @@ function loadState() {
     if (!merged.sectionalPlan || !merged.sectionalPlan.length) merged.sectionalPlan = fresh.sectionalPlan;
     if (!merged.sectionalScores) merged.sectionalScores = [];
     if (!merged.customSections) merged.customSections = [];
+    if (!merged.achievements) merged.achievements = fresh.achievements;
 
     return merged;
   } catch { return JSON.parse(JSON.stringify(DEFAULT_STATE)); }
@@ -1399,80 +1400,91 @@ function getFunnyMessage() {
 }
 
 function renderBrainMeter() {
-  const hours = fmt(totalHours());
-  const mocks = S.mocks.length;
-  const accuracy = (() => {
-    const topics = S.topics || [];
-    const totalAttempts = topics.reduce((a,t) => a+t.attempts, 0);
-    if (totalAttempts === 0) return 0;
-    const totalCorrect = topics.reduce((a,t) => a+t.correct, 0);
-    return Math.round(totalCorrect/totalAttempts*100);
-  })();
-  
-  const emojis = ['🧠','💭','⚡','🔥','💪','🎯','🚀','✨'];
-  const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-  
-  const brainPower = Math.min(100, Math.round((hours.replace('h','') * 5 + mocks * 3) / 2));
-  
-  return `
-    <div style="margin:12px 0">
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-        <span style="font-size:13px;color:var(--text2)">Brain Power: ${brainPower}%</span>
-        <span style="font-size:13px">${randomEmoji}</span>
+  try {
+    const hourValue = totalHours();
+    const hours = fmt(hourValue);
+    const mocks = (S.mocks || []).length;
+    const accuracy = (() => {
+      const topics = S.topics || [];
+      const totalAttempts = topics.reduce((a,t) => a+t.attempts, 0);
+      if (totalAttempts === 0) return 0;
+      const totalCorrect = topics.reduce((a,t) => a+t.correct, 0);
+      return Math.round(totalCorrect/totalAttempts*100);
+    })();
+    
+    const emojis = ['🧠','💭','⚡','🔥','💪','🎯','🚀','✨'];
+    const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+    
+    const brainPower = Math.min(100, Math.max(0, Math.round((hourValue * 5 + mocks * 3) / 2)));
+    
+    return `
+      <div style="margin:12px 0">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:13px;color:var(--text2)">Brain Power: ${brainPower}%</span>
+          <span style="font-size:13px">${randomEmoji}</span>
+        </div>
+        <div style="background:var(--border2);height:24px;border-radius:8px;overflow:hidden">
+          <div style="background:linear-gradient(90deg,#e8c97a,#7ab8e8,#7ae8b0);width:${brainPower}%;height:100%;transition:width 0.3s" />
+        </div>
       </div>
-      <div style="background:var(--border2);height:24px;border-radius:8px;overflow:hidden">
-        <div style="background:linear-gradient(90deg,#e8c97a,#7ab8e8,#7ae8b0);width:${brainPower}%;height:100%;transition:width 0.3s" />
+      <div style="margin-top:12px;font-size:12px;color:var(--text2);text-align:center;font-style:italic">
+        ${getFunnyMessage()}
       </div>
-    </div>
-    <div style="margin-top:12px;font-size:12px;color:var(--text2);text-align:center;font-style:italic">
-      ${getFunnyMessage()}
-    </div>
-    <div style="margin-top:12px;display:flex;gap:16px;justify-content:center;font-size:11px;color:var(--text3)">
-      <div>📚 ${mocks} Mocks</div>
-      <div>⏱ ${hours} Studied</div>
-      <div>🎯 ${accuracy}% Accuracy</div>
-    </div>
-  `;
+      <div style="margin-top:12px;display:flex;gap:16px;justify-content:center;font-size:11px;color:var(--text3)">
+        <div>📚 ${mocks} Mocks</div>
+        <div>⏱ ${hours} Studied</div>
+        <div>🎯 ${accuracy}% Accuracy</div>
+      </div>
+    `;
+  } catch(e) {
+    console.error('Brain meter error:', e);
+    return '<div style="padding:12px;color:var(--text3);text-align:center">Loading brain power...</div>';
+  }
 }
 
 function renderAchievements() {
-  checkAchievements();
-  
-  const badges = [
-    { id: 'firstMock', title: 'First Mock Warrior', emoji: '⚔️', desc: 'Completed your first mock' },
-    { id: 'firstScore95', title: 'Legend Status', emoji: '👑', desc: 'Scored 95+' },
-    { id: 'sectionalMastery', title: 'Sectional Master', emoji: '🧠', desc: 'Scored 40+ in any section' },
-    { id: 'accuracyMaster', title: 'Accuracy King', emoji: '🎯', desc: '80%+ accuracy in topics' },
-    { id: 'streakFire', title: 'Streak Fire 🔥', emoji: '🔥', desc: '7 mocks completed' },
-    { id: 'percentileClimber', title: 'Percentile Climber', emoji: '📈', desc: 'Reached 85+ percentile' },
-    { id: 'focusMaster', title: 'Focus Master', emoji: '💪', desc: 'Scored 100+' },
-    { id: 'studyBuddy', title: 'Study Buddy', emoji: '👥', desc: '10 mocks completed' }
-  ];
-  
-  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:12px">';
-  
-  badges.forEach(badge => {
-    const unlocked = S.achievements && S.achievements[badge.id];
-    html += `
-      <div style="
-        background:${unlocked ? 'rgba(232,201,122,0.1)' : 'rgba(100,100,100,0.2)'};
-        border:2px solid ${unlocked ? '#e8c97a' : 'var(--border2)'};
-        border-radius:12px;
-        padding:12px;
-        text-align:center;
-        cursor:help;
-        opacity:${unlocked ? '1' : '0.5'};
-        transition:all 0.3s;
-      " title="${badge.desc}">
-        <div style="font-size:32px;margin-bottom:4px">${badge.emoji}</div>
-        <div style="font-size:10px;font-weight:600;color:var(--text2)">${badge.title}</div>
-        <div style="font-size:9px;color:var(--text3);margin-top:4px">${unlocked ? '✓ Unlocked' : 'Locked'}</div>
-      </div>
-    `;
-  });
-  
-  html += '</div>';
-  return html;
+  try {
+    checkAchievements();
+    
+    const badges = [
+      { id: 'firstMock', title: 'First Mock Warrior', emoji: '⚔️', desc: 'Completed your first mock' },
+      { id: 'firstScore95', title: 'Legend Status', emoji: '👑', desc: 'Scored 95+' },
+      { id: 'sectionalMastery', title: 'Sectional Master', emoji: '🧠', desc: 'Scored 40+ in any section' },
+      { id: 'accuracyMaster', title: 'Accuracy King', emoji: '🎯', desc: '80%+ accuracy in topics' },
+      { id: 'streakFire', title: 'Streak Fire 🔥', emoji: '🔥', desc: '7 mocks completed' },
+      { id: 'percentileClimber', title: 'Percentile Climber', emoji: '📈', desc: 'Reached 85+ percentile' },
+      { id: 'focusMaster', title: 'Focus Master', emoji: '💪', desc: 'Scored 100+' },
+      { id: 'studyBuddy', title: 'Study Buddy', emoji: '👥', desc: '10 mocks completed' }
+    ];
+    
+    let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:12px">';
+    
+    badges.forEach(badge => {
+      const unlocked = S.achievements && S.achievements[badge.id];
+      html += `
+        <div style="
+          background:${unlocked ? 'rgba(232,201,122,0.1)' : 'rgba(100,100,100,0.2)'};
+          border:2px solid ${unlocked ? '#e8c97a' : 'var(--border2)'};
+          border-radius:12px;
+          padding:12px;
+          text-align:center;
+          cursor:help;
+          opacity:${unlocked ? '1' : '0.5'};
+          transition:all 0.3s;
+        " title="${badge.desc}">
+          <div style="font-size:32px;margin-bottom:4px">${badge.emoji}</div>
+          <div style="font-size:10px;font-weight:600;color:var(--text2)">${badge.title}</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:4px">${unlocked ? '✓ Unlocked' : 'Locked'}</div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    return html;
+  } catch(e) {
+    console.error('Achievements error:', e);
+    return '<div style="padding:12px;color:var(--text3);text-align:center">Loading badges...</div>';
+  }
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────
@@ -1483,7 +1495,6 @@ function renderDashboard() {
 
   const lm = latestMock();
   const metrics = [
-    { label: 'Total hours', val: fmt(totalHours()), sub: 'studied' },
     { label: 'Mocks taken', val: S.mocks.length, sub: 'tests' },
     { label: 'Latest score', val: lm ? lm.varc+lm.dilr+lm.qa : '—', sub: lm ? lm.name : 'no mocks yet' },
     { label: 'Days to exam', val: daysLeft(), sub: S.config.examDate },
@@ -1492,25 +1503,6 @@ function renderDashboard() {
   document.getElementById('dash-metrics').innerHTML = metrics.map(m =>
     `<div class="metric-card"><div class="metric-label">${m.label}</div><div class="metric-val">${m.val}</div><div class="metric-sub">${m.sub}</div></div>`
   ).join('');
-
-  // Hours chart — last 8 weeks
-  const weeks = []; const hrs = [];
-  for (let i=7; i>=0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i*7);
-    const wStart = new Date(d); wStart.setDate(d.getDate()-6);
-    const wEnd = new Date(d);
-    const wHrs = S.studyLogs.filter(l => {
-      const ld = new Date(l.date);
-      return ld >= wStart && ld <= wEnd;
-    }).reduce((a,l) => a+l.hours, 0);
-    weeks.push('W'+(8-i));
-    hrs.push(parseFloat(wHrs.toFixed(1)));
-  }
-  mkChart('hoursChart', {
-    type: 'bar',
-    data: { labels: weeks, datasets: [{ data: hrs, backgroundColor: 'rgba(232,201,122,0.7)', borderRadius: 4 }] },
-    options: { ...CHART_DEFAULTS, scales: { ...CHART_DEFAULTS.scales, y: { ...CHART_DEFAULTS.scales.y, beginAtZero: true } } }
-  });
 
   // Score chart
   if (S.mocks.length) {
@@ -1536,15 +1528,14 @@ function renderDashboard() {
     </div>`;
   }).join('');
 
-  // Target progress
-  const lMock = latestMock();
+  // Target progress - using best SimCAT scores
+  const maxSimcat = getMaxSimcatScores();
   const tpHTML = ['VARC','DILR','Quant'].map((s,i) => {
-    const key = s.toLowerCase().replace('quant','qa');
     const target = s==='VARC'?S.targets.varc:s==='DILR'?S.targets.dilr:S.targets.qa;
-    const current = lMock ? (s==='VARC'?lMock.varc:s==='DILR'?lMock.dilr:lMock.qa) : 0;
+    const current = maxSimcat ? (s==='VARC'?maxSimcat.varc:s==='DILR'?maxSimcat.dilr:maxSimcat.qa) : 0;
     const pct = target > 0 ? Math.min(100, Math.round(current/target*100)) : 0;
     const diff = current - target;
-    const diffStr = lMock ? (diff >= 0 ? `+${diff} ahead` : `${diff} to go`) : 'no data';
+    const diffStr = maxSimcat ? (diff >= 0 ? `+${diff} ahead` : `${diff} to go`) : 'no data';
     return `<div class="prog-row">
       <span class="prog-label">${s} (${current}/${target})</span>
       <div class="prog-track"><div class="prog-fill" style="width:${pct}%;background:${SEC_C[s]}"></div></div>
@@ -1552,6 +1543,41 @@ function renderDashboard() {
     </div>`;
   }).join('');
   document.getElementById('dash-targets').innerHTML = tpHTML;
+  
+  // Render Target Cards on Dashboard
+  const secs = ['VARC','DILR','Quant'];
+  const targets = [S.targets.varc, S.targets.dilr, S.targets.qa];
+  const maxes = [72, 60, 66];
+
+  document.getElementById('dash-target-cards').innerHTML = secs.map((s,i) => {
+    const cur = maxSimcat ? (s==='VARC'?maxSimcat.varc:s==='DILR'?maxSimcat.dilr:maxSimcat.qa) : 0;
+    const tgt = targets[i];
+    const pct = Math.min(100, Math.round(cur/tgt*100));
+    const diff = cur - tgt;
+    return `<div class="target-card">
+      <div class="target-sec-label" style="color:${SEC_C[s]}">${s}</div>
+      <div class="target-score-row">
+        <span class="target-score" style="color:${SEC_C[s]}">${cur}</span>
+        <span class="target-of">/ ${tgt} target</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono)">max: ${maxes[i]}</div>
+      <div class="target-bar-track"><div class="target-bar-fill" style="width:${pct}%;background:${SEC_C[s]}"></div></div>
+      <div class="target-diff" style="color:${diff>=0?'var(--success)':diff>=-5?'var(--warn)':'var(--danger)'}">${maxSimcat?(diff>=0?'▲ '+diff+' ahead':'▼ '+Math.abs(diff)+' to go'):'No SimCAT data'}</div>
+    </div>`;
+  }).join('');
+  
+  // Percentile on Dashboard
+  const lastPct = maxSimcat && maxSimcat.percentile ? maxSimcat.percentile : null;
+  document.getElementById('dash-target-cards').innerHTML += `<div class="target-card">
+    <div class="target-sec-label" style="color:var(--text2)">Percentile</div>
+    <div class="target-score-row">
+      <span class="target-score">${lastPct || '—'}</span>
+      <span class="target-of">/ ${S.targets.percentile}%ile</span>
+    </div>
+    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono)">target</div>
+    <div class="target-bar-track"><div class="target-bar-fill" style="width:${lastPct?Math.min(100,Math.round(lastPct/S.targets.percentile*100)):0}%;background:var(--text2)"></div></div>
+    <div class="target-diff" style="color:var(--text3)">${lastPct ? (lastPct>=S.targets.percentile?'▲ On track':'▼ '+(S.targets.percentile-lastPct).toFixed(2)+' to go') : 'Add percentile to SimCAT mocks'}</div>
+  </div>`;
   
   // Render Brain Meter
   document.getElementById('brain-meter').innerHTML = renderBrainMeter();
