@@ -781,6 +781,39 @@ option { background: var(--bg3); }
     <h2>Sectional test schedule</h2>
     <p>CAT 2026 · 30 sectionals (10 VA + 10 DILR + 10 Quant)</p>
   </div>
+  
+  <div class="card">
+    <div class="card-title">Add sectional score</div>
+    <div class="form-group">
+      <div class="form-field">
+        <label>Date</label>
+        <input type="date" id="sec-date" />
+      </div>
+      <div class="form-field">
+        <label>Section</label>
+        <select id="sec-section">
+          <option value="VARC">VARC (VA)</option>
+          <option value="DILR">DILR</option>
+          <option value="Quant">Quant</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Sectional #</label>
+        <input type="number" id="sec-num" min="1" max="10" placeholder="1-10" />
+      </div>
+      <div class="form-field">
+        <label>Score</label>
+        <input type="number" id="sec-score" min="0" placeholder="0" />
+      </div>
+      <button class="btn" onclick="addSectionalScore()">Add</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Sectional scores</div>
+    <div id="sectional-scores-list"></div>
+  </div>
+
   <div class="metric-grid" id="sectionals-metrics"></div>
   <div id="sectionals-list"></div>
 </section>
@@ -1085,7 +1118,8 @@ const DEFAULT_STATE = {
       ['2026-10-25','Quant — Sectional 10','Quant']
     ];
     return rows.map((r,i) => ({ id:'s'+i, date:r[0], name:r[1], section:r[2], status:'pending' }));
-  })()
+  })(),
+  sectionalScores: []
 };
 
 function deepMerge(target, source) {
@@ -1116,6 +1150,7 @@ function loadState() {
     // Ensure new schedule arrays exist
     if (!merged.mockPlan || !merged.mockPlan.length) merged.mockPlan = fresh.mockPlan;
     if (!merged.sectionalPlan || !merged.sectionalPlan.length) merged.sectionalPlan = fresh.sectionalPlan;
+    if (!merged.sectionalScores) merged.sectionalScores = [];
 
     return merged;
   } catch { return JSON.parse(JSON.stringify(DEFAULT_STATE)); }
@@ -1617,8 +1652,10 @@ function renderMocks() {
     document.getElementById('mock-list').innerHTML = '<div class="empty-state">No mocks yet</div>';
     return;
   }
-  const labels = S.mocks.map(m => m.name);
-  const totals = S.mocks.map(m => m.varc + m.dilr + m.qa);
+  // Sort mocks by date (chronological order)
+  const sortedMocks = [...S.mocks].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const labels = sortedMocks.map(m => m.name);
+  const totals = sortedMocks.map(m => m.varc + m.dilr + m.qa);
 
   // Total score trend chart
   mkChart('totalChart', {
@@ -1642,13 +1679,13 @@ function renderMocks() {
   mkChart('mockTrendChart', {
     type: 'line',
     data: { labels, datasets: [
-      { label:'VARC', data:S.mocks.map(m=>m.varc), borderColor:'#e8c97a', tension:0.4, pointRadius:4, borderDash:[] },
-      { label:'DILR', data:S.mocks.map(m=>m.dilr), borderColor:'#7ab8e8', tension:0.4, pointRadius:4, borderDash:[4,3] },
-      { label:'QA',   data:S.mocks.map(m=>m.qa),   borderColor:'#7ae8b0', tension:0.4, pointRadius:4, borderDash:[2,2] }
+      { label:'VARC', data:sortedMocks.map(m=>m.varc), borderColor:'#e8c97a', tension:0.4, pointRadius:4, borderDash:[] },
+      { label:'DILR', data:sortedMocks.map(m=>m.dilr), borderColor:'#7ab8e8', tension:0.4, pointRadius:4, borderDash:[4,3] },
+      { label:'QA',   data:sortedMocks.map(m=>m.qa),   borderColor:'#7ae8b0', tension:0.4, pointRadius:4, borderDash:[2,2] }
     ]},
     options: { ...CHART_DEFAULTS }
   });
-  const withPct = S.mocks.filter(m => m.percentile);
+  const withPct = sortedMocks.filter(m => m.percentile);
   if (withPct.length) {
     mkChart('pctChart', {
       type: 'line',
@@ -1672,8 +1709,9 @@ function renderMocks() {
     <span style="width:28px"></span>
   </div>`;
 
-  document.getElementById('mock-list').innerHTML = headerRow + [...S.mocks].reverse().map((m,ri) => {
-    const i = S.mocks.length-1-ri;
+  document.getElementById('mock-list').innerHTML = headerRow + sortedMocks.map((m) => {
+    // Find original index in S.mocks for delete button
+    const i = S.mocks.findIndex(orig => orig.date === m.date && orig.name === m.name && orig.varc === m.varc);
     const total = m.varc+m.dilr+m.qa;
     return `<div class="data-row" style="gap:12px">
       <span style="flex:2;font-size:13px;font-weight:500">${m.name}</span>
@@ -1703,7 +1741,19 @@ function addMock() {
     qa: parseInt(document.getElementById('m-qa').value)||0,
     percentile: parseFloat(document.getElementById('m-pct').value)||null
   };
-  S.mocks.push(m); save(); renderMocks();
+  S.mocks.push(m); 
+  
+  // Auto-mark the mock as completed in mock plan
+  if (S.mockPlan) {
+    const matchingMock = S.mockPlan.find(plan => 
+      plan.date === m.date || plan.name.toLowerCase() === m.name.toLowerCase()
+    );
+    if (matchingMock) {
+      matchingMock.status = 'completed';
+    }
+  }
+  
+  save(); renderMocks();
   document.getElementById('m-name').value='';
   document.getElementById('m-pct').value='';
 }
@@ -2274,6 +2324,8 @@ function cycleMockStatus(i) {
 }
 
 function renderSectionals() {
+  document.getElementById('sec-date').valueAsDate = new Date();
+  
   const plan = S.sectionalPlan || [];
   const counts = { pending:0, completed:0, analysed:0 };
   plan.forEach(s => counts[s.status] = (counts[s.status]||0) + 1);
@@ -2308,6 +2360,7 @@ function renderSectionals() {
     html += `</div>`;
   });
   document.getElementById('sectionals-list').innerHTML = html;
+  renderSectionalScoresList();
 }
 
 function cycleSectionalStatus(i) {
@@ -2316,6 +2369,80 @@ function cycleSectionalStatus(i) {
   s.status = STATUS_CYCLE[(cur + 1) % STATUS_CYCLE.length];
   save();
   renderSectionals();
+}
+
+function addSectionalScore() {
+  const date = document.getElementById('sec-date').value;
+  const section = document.getElementById('sec-section').value;
+  const num = parseInt(document.getElementById('sec-num').value) || 0;
+  const score = parseInt(document.getElementById('sec-score').value) || 0;
+  
+  if (!date || num < 1 || num > 10 || score < 0) {
+    alert('Please enter valid date, sectional number (1-10), and score.');
+    return;
+  }
+  
+  const score_obj = {
+    date,
+    section,
+    sectionalNum: num,
+    score,
+    name: `${section} — Sectional ${num}`
+  };
+  
+  S.sectionalScores.push(score_obj);
+  
+  // Auto-mark the sectional as completed in sectional plan
+  if (S.sectionalPlan) {
+    const matchingSectional = S.sectionalPlan.find(plan => 
+      plan.date === date && plan.section === section && plan.name.includes(`Sectional ${num}`)
+    );
+    if (matchingSectional) {
+      matchingSectional.status = 'completed';
+    }
+  }
+  
+  save();
+  renderSectionalScoresList();
+  renderSectionals();
+  
+  document.getElementById('sec-num').value = '';
+  document.getElementById('sec-score').value = '';
+}
+
+function renderSectionalScoresList() {
+  const scores = S.sectionalScores || [];
+  if (!scores.length) {
+    document.getElementById('sectional-scores-list').innerHTML = '<div style="color:var(--text3);font-size:13px">No sectional scores yet.</div>';
+    return;
+  }
+  
+  const sortedScores = [...scores].sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  let html = `<div class="data-row" style="gap:10px;border-bottom:1px solid var(--border2)">
+    <span style="flex:1;font-size:10px;color:var(--text3);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.5px">Section</span>
+    <span style="color:var(--text3);font-family:var(--font-mono);font-size:10px;width:50px;text-align:center">SCORE</span>
+    <span style="font-size:10px;color:var(--text3);font-family:var(--font-mono);width:80px">DATE</span>
+    <span style="width:28px"></span>
+  </div>`;
+  
+  html += sortedScores.map((score, idx) => {
+    const sectionColors = { 'VARC': 'var(--varc)', 'DILR': 'var(--dilr)', 'Quant': 'var(--quant)' };
+    return `<div class="data-row" style="gap:10px">
+      <span style="flex:1;font-size:13px;font-weight:500;color:${sectionColors[score.section]}">${score.name}</span>
+      <span style="font-weight:600;font-size:14px;color:var(--accent);width:50px;text-align:center">${score.score}</span>
+      <span style="font-size:11px;color:var(--text3);width:80px">${score.date}</span>
+      <button class="btn btn-ghost btn-sm" onclick="deleteSectionalScore(${idx})" style="padding:3px 8px;font-size:11px;width:28px">✕</button>
+    </div>`;
+  }).join('');
+  
+  document.getElementById('sectional-scores-list').innerHTML = html;
+}
+
+function deleteSectionalScore(i) {
+  S.sectionalScores.splice(i, 1);
+  save();
+  renderSectionalScoresList();
 }
 
 // ─── SETTINGS ────────────────────────────────────────────────────────
