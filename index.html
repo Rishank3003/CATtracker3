@@ -494,6 +494,9 @@ option { background: var(--bg3); }
     <button class="nav-item" onclick="navigate('revision', this)">
       <span class="nav-icon">📅</span><span>Revision</span>
     </button>
+    <button class="nav-item" onclick="navigate('targets', this)">
+      <span class="nav-icon">◉</span><span>Targets</span>
+    </button>
     <button class="nav-item" onclick="navigate('mockplan', this)">
       <span class="nav-icon">🗓</span><span>Mock plan</span>
     </button>
@@ -629,6 +632,24 @@ option { background: var(--bg3); }
 </section>
 
 <!-- TARGETS -->
+<section class="page" id="page-targets">
+  <div class="page-header">
+    <h2>Score targets</h2>
+    <p>Track your best SimCAT performance against targets</p>
+  </div>
+
+  <div class="card">
+    <div class="target-grid" id="target-cards"></div>
+    <div class="form-group" style="margin-top:16px">
+      <div class="form-field"><label>VARC target (/72)</label><input type="number" id="t-varc" min="0" max="72"></div>
+      <div class="form-field"><label>DILR target (/60)</label><input type="number" id="t-dilr" min="0" max="60"></div>
+      <div class="form-field"><label>QA target (/66)</label><input type="number" id="t-qa" min="0" max="66"></div>
+      <div class="form-field"><label>Target percentile</label><input type="number" id="t-pct" min="0" max="100" step="0.01"></div>
+      <button class="btn btn-ghost btn-sm" onclick="saveTargets()" style="align-self:flex-end">Update targets</button>
+    </div>
+  </div>
+</section>
+
 <!-- REVISION -->
 <section class="page" id="page-revision">
   <div class="page-header">
@@ -1235,6 +1256,7 @@ function renderPage(id) {
   if (id === 'mocks') renderMocks();
   if (id === 'topics') renderTopics();
   if (id === 'weak') renderWeak();
+  if (id === 'targets') renderTargets();
   if (id === 'revision') renderRevision();
   if (id === 'mockplan') renderMockPlan();
   if (id === 'sectionals') renderSectionals();
@@ -2020,66 +2042,6 @@ function renderTargets() {
   document.getElementById('t-dilr').value = S.targets.dilr;
   document.getElementById('t-qa').value = S.targets.qa;
   document.getElementById('t-pct').value = S.targets.percentile;
-  document.getElementById('t-daily-hrs').value = S.targets.dailyHrs;
-  document.getElementById('t-varc-hrs').value = S.targets.varcHrs;
-  document.getElementById('t-dilr-hrs').value = S.targets.dilrHrs;
-  document.getElementById('t-quant-hrs').value = S.targets.quantHrs;
-
-  // Daily target summary
-  const dl = daysLeft();
-  const done = fmt(totalHours());
-  const needed = S.targets.dailyHrs * dl;
-  const deficit = Math.max(0, needed - done);
-  document.getElementById('daily-target-summary').innerHTML = `
-    <div class="flex gap-12" style="flex-wrap:wrap;margin-top:8px">
-      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Done so far</div><div class="metric-val" style="font-size:20px">${done}h</div></div>
-      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Needed (at target)</div><div class="metric-val" style="font-size:20px">${needed}h</div></div>
-      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Still to do</div><div class="metric-val" style="font-size:20px;color:${deficit>0?'var(--warn)':'var(--success)'}">${deficit}h</div></div>
-      <div class="metric-card" style="flex:1;min-width:120px"><div class="metric-label">Adj. daily pace</div><div class="metric-val" style="font-size:20px">${dl>0?fmt(deficit/dl):'0'}h</div><div class="metric-sub">to meet target</div></div>
-    </div>`;
-
-  // Countdown
-  document.getElementById('countdown-block').innerHTML = `
-    <div style="font-size:48px;font-weight:600;color:var(--accent);font-family:var(--font-head);letter-spacing:-2px;margin-bottom:4px">${dl}</div>
-    <div style="font-size:13px;color:var(--text3);margin-bottom:16px">days until ${S.config.examDate}</div>
-    <div class="prog-row"><span class="prog-label" style="width:130px">Mocks completed</span><div class="prog-track"><div class="prog-fill" style="width:${S.phases.length?Math.min(100,Math.round(S.mocks.length/S.phases.reduce((a,p)=>a+p.targetMocks,0)*100)):0}%;background:var(--varc)"></div></div><span class="prog-pct">${S.mocks.length}</span></div>
-    <div class="prog-row"><span class="prog-label" style="width:130px">Hours completed</span><div class="prog-track"><div class="prog-fill" style="width:${Math.min(100,Math.round(totalHours()/(S.targets.dailyHrs*(dl+totalHours()/Math.max(1,S.targets.dailyHrs)))*100))}%;background:var(--quant)"></div></div><span class="prog-pct">${fmt(totalHours())}h</span></div>
-  `;
-
-  // Milestones
-  const today = new Date().toISOString().slice(0,10);
-  document.getElementById('milestone-list').innerHTML = S.milestones.length
-    ? S.milestones.map((m,i) => `<div class="tl-item">
-        <div class="tl-dot ${m.done?'done':m.date<=today?'active':''}"></div>
-        <div class="tl-date">${m.date}</div>
-        <div class="tl-label">${m.name}</div>
-        <div style="display:flex;gap:6px;margin-top:3px">
-          <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" onclick="toggleMilestone(${i})">${m.done?'Undo':'Done'}</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" onclick="deleteMilestone(${i})">✕</button>
-        </div>
-      </div>`).join('')
-    : '<div class="empty-state">No milestones yet</div>';
-
-  document.getElementById('ms-date').value = new Date().toISOString().slice(0,10);
-
-  // Phases
-  document.getElementById('phase-list').innerHTML = S.phases.length
-    ? S.phases.map((p,i) => {
-        const phaseMocks = S.mocks.filter(m => m.date >= p.start && m.date <= p.end).length;
-        const pct = Math.min(100, Math.round(phaseMocks/p.targetMocks*100));
-        return `<div class="data-row" style="gap:10px">
-          <span style="flex:2;font-size:13px;font-weight:500">${p.name}</span>
-          <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono)">${p.start} → ${p.end}</span>
-          <div style="display:flex;align-items:center;gap:6px;flex:1">
-            <div class="prog-track" style="flex:1"><div class="prog-fill" style="width:${pct}%;background:var(--dilr)"></div></div>
-            <span style="font-size:12px;font-family:var(--font-mono);color:var(--text3)">${phaseMocks}/${p.targetMocks}</span>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="deletePhase(${i})" style="padding:3px 8px;font-size:11px">✕</button>
-        </div>`;
-      }).join('')
-    : '<div class="empty-state">No phases planned yet</div>';
-
-  document.getElementById('ph-start').value = new Date().toISOString().slice(0,10);
 }
 
 function saveTargets() {
