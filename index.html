@@ -1741,31 +1741,44 @@ function addMock() {
     qa: parseInt(document.getElementById('m-qa').value)||0,
     percentile: parseFloat(document.getElementById('m-pct').value)||null
   };
+  
+  // Validate that date was entered (allow score of 0)
+  if (!document.getElementById('m-date').value || !document.getElementById('m-name').value) {
+    alert('Please enter date and mock name.');
+    return;
+  }
+  
   S.mocks.push(m); 
   
-  // Auto-mark the mock as completed in mock plan - improved matching
+  // Auto-mark the mock as completed in mock plan ONLY when score is entered
   if (S.mockPlan && S.mockPlan.length > 0) {
-    // Try multiple matching strategies
+    // Strategy 1: Exact date match (most reliable)
     let matchingMock = S.mockPlan.find(plan => plan.date === m.date);
     
-    // If date didn't match, try name matching
+    // Strategy 2: Date range match (within 1 day)
     if (!matchingMock) {
-      const nameLower = m.name.toLowerCase().trim();
+      const inputDate = new Date(m.date);
       matchingMock = S.mockPlan.find(plan => {
-        const planNameLower = plan.name.toLowerCase().trim();
-        // Check if name contains the mock name or vice versa
-        return planNameLower.includes(nameLower) || nameLower.includes(planNameLower);
+        const planDate = new Date(plan.date);
+        const diffTime = Math.abs(inputDate - planDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 1;
+      });
+    }
+    
+    // Strategy 3: Name matching (extract mock name from input)
+    if (!matchingMock && m.name) {
+      const nameParts = m.name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      matchingMock = S.mockPlan.find(plan => {
+        const planParts = plan.name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        return planParts.includes(nameParts) || nameParts.includes(planParts);
       });
     }
     
     if (matchingMock) {
       matchingMock.status = 'completed';
-      console.log('✓ Synced mock to plan:', matchingMock.name);
-    } else {
-      console.log('ℹ No matching mock in plan. You may need to add it to the Mock Schedule first.');
+      alert(`✓ Mock "${matchingMock.name}" marked as completed!`);
     }
-  } else {
-    console.log('ℹ Mock Plan not initialized yet');
   }
   
   save(); 
@@ -2388,7 +2401,7 @@ function addSectionalScore() {
   const score = parseInt(document.getElementById('sec-score').value) || 0;
   
   if (!date || num < 1 || num > 10 || score < 0) {
-    alert('Please enter valid date, sectional number (1-10), and score.');
+    alert('Please enter valid date, sectional number (1-10), and score (>= 0).');
     return;
   }
   
@@ -2409,6 +2422,7 @@ function addSectionalScore() {
     );
     if (matchingSectional) {
       matchingSectional.status = 'completed';
+      alert(`✓ "${matchingSectional.name}" marked as completed!`);
     }
   }
   
