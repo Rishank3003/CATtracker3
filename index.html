@@ -534,6 +534,10 @@ option { background: var(--bg3); }
     <div id="dash-targets"></div>
   </div>
   <div class="card">
+    <div class="card-title">Best overall SimCAT 🏅</div>
+    <div id="dash-best-overall"></div>
+  </div>
+  <div class="card">
     <div class="card-title">Score targets 🎯</div>
     <div class="target-grid" id="dash-target-cards"></div>
   </div>
@@ -644,6 +648,11 @@ option { background: var(--bg3); }
   <div class="page-header">
     <h2>Score targets</h2>
     <p>Track your best SimCAT performance against targets</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Best overall SimCAT 🏅</div>
+    <div id="targets-best-overall"></div>
   </div>
 
   <div class="card">
@@ -1354,7 +1363,7 @@ function checkAchievements() {
   }
   
   // Accuracy Master (80%+ accuracy in topics)
-  const allTopics = S.topics || [];
+  const allTopics = [...(S.topics.VARC||[]), ...(S.topics.DILR||[]), ...(S.topics.Quant||[])];
   const hasAccuracy = allTopics.some(t => t.attempts > 0 && (t.correct/t.attempts)*100 >= 80);
   if (hasAccuracy && !S.achievements.accuracyMaster) {
     S.achievements.accuracyMaster = true;
@@ -1402,15 +1411,7 @@ function getFunnyMessage() {
 function renderBrainMeter() {
   try {
     const hourValue = totalHours();
-    const hours = fmt(hourValue);
     const mocks = (S.mocks || []).length;
-    const accuracy = (() => {
-      const topics = S.topics || [];
-      const totalAttempts = topics.reduce((a,t) => a+t.attempts, 0);
-      if (totalAttempts === 0) return 0;
-      const totalCorrect = topics.reduce((a,t) => a+t.correct, 0);
-      return Math.round(totalCorrect/totalAttempts*100);
-    })();
     
     const emojis = ['🧠','💭','⚡','🔥','💪','🎯','🚀','✨'];
     const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
@@ -1432,8 +1433,6 @@ function renderBrainMeter() {
       </div>
       <div style="margin-top:12px;display:flex;gap:16px;justify-content:center;font-size:11px;color:var(--text3)">
         <div>📚 ${mocks} Mocks</div>
-        <div>⏱ ${hours} Studied</div>
-        <div>🎯 ${accuracy}% Accuracy</div>
       </div>
     `;
   } catch(e) {
@@ -1533,6 +1532,9 @@ function renderDashboard() {
     </div>`;
   }).join('');
   document.getElementById('dash-targets').innerHTML = tpHTML;
+  
+  // Best overall SimCAT card
+  document.getElementById('dash-best-overall').innerHTML = renderBestOverallCard();
   
   // Render Target Cards on Dashboard
   const secs = ['VARC','DILR','Quant'];
@@ -2164,10 +2166,15 @@ function getMaxSimcatScores() {
   
   if (simcatMocks.length === 0) return null;
   
-  // Find the best overall score (total of all three sections)
+  // True maximum in each section independently, across all SimCATs
+  const maxVarc = Math.max(...simcatMocks.map(m => m.varc || 0));
+  const maxDilr = Math.max(...simcatMocks.map(m => m.dilr || 0));
+  const maxQa = Math.max(...simcatMocks.map(m => m.qa || 0));
+  const maxPercentile = Math.max(...simcatMocks.map(m => m.percentile || 0));
+  
+  // Best overall (highest total) mock, for reference
   let bestMock = null;
   let bestTotal = 0;
-  
   simcatMocks.forEach(m => {
     const total = (m.varc || 0) + (m.dilr || 0) + (m.qa || 0);
     if (total > bestTotal) {
@@ -2176,19 +2183,56 @@ function getMaxSimcatScores() {
     }
   });
   
-  if (!bestMock) return null;
-  
   return {
-    varc: bestMock.varc || 0,
-    dilr: bestMock.dilr || 0,
-    qa: bestMock.qa || 0,
-    percentile: bestMock.percentile || 0,
-    total: bestTotal
+    varc: maxVarc,
+    dilr: maxDilr,
+    qa: maxQa,
+    percentile: maxPercentile,
+    total: maxVarc + maxDilr + maxQa,
+    bestOverallTotal: bestTotal,
+    bestOverallMock: bestMock
   };
+}
+
+function renderBestOverallCard() {
+  const maxSimcat = getMaxSimcatScores();
+  if (!maxSimcat || !maxSimcat.bestOverallMock) {
+    return '<div class="empty-state">No SimCAT scores yet — add a SimCAT mock to see your best performance</div>';
+  }
+  const m = maxSimcat.bestOverallMock;
+  const secs = [
+    { label: 'VARC', val: m.varc || 0, max: 72 },
+    { label: 'DILR', val: m.dilr || 0, max: 60 },
+    { label: 'Quant', val: m.qa || 0, max: 66 }
+  ];
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <div>
+        <div style="font-size:15px;font-weight:600;color:var(--text)">${m.name}</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono)">${m.date || ''}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:28px;font-weight:700;font-family:var(--font-head);color:var(--accent)">${maxSimcat.bestOverallTotal}</div>
+        <div style="font-size:11px;color:var(--text3)">total score${m.percentile ? ' · ' + m.percentile + '%ile' : ''}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+      ${secs.map(s => `
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border2);border-radius:10px;padding:10px 12px">
+          <div style="font-size:11px;color:${SEC_C[s.label]};font-weight:600;margin-bottom:4px">${s.label}</div>
+          <div style="font-size:20px;font-weight:700;color:var(--text)">${s.val}<span style="font-size:12px;color:var(--text3);font-weight:400"> / ${s.max}</span></div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 function renderTargets() {
   const maxSimcat = getMaxSimcatScores();
+  
+  // Best overall SimCAT card
+  document.getElementById('targets-best-overall').innerHTML = renderBestOverallCard();
+  
   const secs = ['VARC','DILR','Quant'];
   const targets = [S.targets.varc, S.targets.dilr, S.targets.qa];
   const maxes = [72, 60, 66];
