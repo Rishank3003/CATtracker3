@@ -1518,16 +1518,6 @@ function renderDashboard() {
     document.getElementById('scoreChart').closest('.chart-wrap').innerHTML = '<div class="empty-state">Add mocks to see trend</div>';
   }
 
-  // Accuracy bars
-  document.getElementById('dash-acc').innerHTML = ['VARC','DILR','Quant'].map(s => {
-    const pct = sectionAcc(s);
-    return `<div class="prog-row">
-      <span class="prog-label">${s}</span>
-      <div class="prog-track"><div class="prog-fill" style="width:${pct}%;background:${SEC_C[s]}"></div></div>
-      <span class="prog-pct">${pct}%</span>
-    </div>`;
-  }).join('');
-
   // Target progress - using best SimCAT scores
   const maxSimcat = getMaxSimcatScores();
   const tpHTML = ['VARC','DILR','Quant'].map((s,i) => {
