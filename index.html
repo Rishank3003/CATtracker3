@@ -782,6 +782,7 @@ option { background: var(--bg3); }
     <p>CAT 2026 · Track all sectionals with scores and progress</p>
   </div>
   
+  <!-- Add Sectional Score -->
   <div class="card">
     <div class="card-title">Add sectional score</div>
     <div class="form-group">
@@ -791,11 +792,7 @@ option { background: var(--bg3); }
       </div>
       <div class="form-field">
         <label>Section</label>
-        <select id="sec-section">
-          <option value="VARC">VARC (VA)</option>
-          <option value="DILR">DILR</option>
-          <option value="Quant">Quant</option>
-        </select>
+        <input type="text" id="sec-section" placeholder="e.g., Cracku VA, Cracku RC, Byju's QA" />
       </div>
       <div class="form-field">
         <label>Sectional #</label>
@@ -809,26 +806,7 @@ option { background: var(--bg3); }
     </div>
   </div>
 
-  <!-- VARC Section -->
-  <div class="card">
-    <div class="card-title">VARC (Verbal & Reading Comprehension)</div>
-    <div class="chart-wrap" style="height:250px;margin-bottom:20px"><canvas id="chart-varc-sectional"></canvas></div>
-    <div id="varc-sectional-list"></div>
-  </div>
-
-  <!-- DILR Section -->
-  <div class="card">
-    <div class="card-title">DILR (Data & Logic)</div>
-    <div class="chart-wrap" style="height:250px;margin-bottom:20px"><canvas id="chart-dilr-sectional"></canvas></div>
-    <div id="dilr-sectional-list"></div>
-  </div>
-
-  <!-- Quant Section -->
-  <div class="card">
-    <div class="card-title">Quant (Quantitative)</div>
-    <div class="chart-wrap" style="height:250px;margin-bottom:20px"><canvas id="chart-quant-sectional"></canvas></div>
-    <div id="quant-sectional-list"></div>
-  </div>
+  <div id="sectionals-cards-container"></div>
 </section>
 
 <!-- SETTINGS -->
@@ -1132,7 +1110,8 @@ const DEFAULT_STATE = {
     ];
     return rows.map((r,i) => ({ id:'s'+i, date:r[0], name:r[1], section:r[2], status:'pending' }));
   })(),
-  sectionalScores: []
+  sectionalScores: [],
+  customSections: []
 };
 
 function deepMerge(target, source) {
@@ -1164,6 +1143,7 @@ function loadState() {
     if (!merged.mockPlan || !merged.mockPlan.length) merged.mockPlan = fresh.mockPlan;
     if (!merged.sectionalPlan || !merged.sectionalPlan.length) merged.sectionalPlan = fresh.sectionalPlan;
     if (!merged.sectionalScores) merged.sectionalScores = [];
+    if (!merged.customSections) merged.customSections = [];
 
     return merged;
   } catch { return JSON.parse(JSON.stringify(DEFAULT_STATE)); }
@@ -1424,7 +1404,6 @@ function renderDashboard() {
   const metrics = [
     { label: 'Total hours', val: fmt(totalHours()), sub: 'studied' },
     { label: 'Mocks taken', val: S.mocks.length, sub: 'tests' },
-    { label: 'Overall accuracy', val: (() => { const at=allTopics(); const c=at.reduce((a,x)=>a+x.correct,0); const t=at.reduce((a,x)=>a+x.attempts,0); return t>0?Math.round(c/t*100)+'%':'—'; })(), sub: 'all topics' },
     { label: 'Latest score', val: lm ? lm.varc+lm.dilr+lm.qa : '—', sub: lm ? lm.name : 'no mocks yet' },
     { label: 'Days to exam', val: daysLeft(), sub: S.config.examDate },
     { label: 'Target %ile', val: S.targets.percentile, sub: 'goal' }
@@ -2362,10 +2341,48 @@ function cycleMockStatus(i) {
 function renderSectionals() {
   document.getElementById('sec-date').valueAsDate = new Date();
   
-  // Render each section separately
-  renderSectionTable('VARC');
-  renderSectionTable('DILR');
-  renderSectionTable('Quant');
+  const defaultSections = ['VARC', 'DILR', 'Quant'];
+  const allSections = [...defaultSections, ...(S.customSections || [])];
+  
+  let cardsHTML = '';
+  
+  allSections.forEach(section => {
+    const sectionDisplay = section;
+    const chartId = `chart-${section.toLowerCase()}-sectional`;
+    const tableId = `${section.toLowerCase()}-sectional-list`;
+    
+    cardsHTML += `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div class="card-title">${sectionDisplay}</div>
+          ${!defaultSections.includes(section) ? `<button class="btn btn-ghost btn-sm" onclick="deleteCustomSection('${section}')" style="padding:3px 8px;font-size:11px">Remove</button>` : ''}
+        </div>
+        <div class="chart-wrap" style="height:250px;margin-bottom:20px"><canvas id="${chartId}"></canvas></div>
+        <div id="${tableId}"></div>
+      </div>
+    `;
+  });
+  
+  document.getElementById('sectionals-cards-container').innerHTML = cardsHTML;
+  
+  // Render tables and charts for all sections
+  allSections.forEach(section => {
+    renderSectionTable(section);
+  });
+}
+
+
+function deleteCustomSection(section) {
+  if (!confirm(`Delete "${section}" section and all its scores?`)) return;
+  
+  // Remove from customSections
+  S.customSections = S.customSections.filter(s => s !== section);
+  
+  // Remove all scores for this section
+  S.sectionalScores = S.sectionalScores.filter(score => score.section !== section);
+  
+  save();
+  renderSectionals();
 }
 
 function renderSectionTable(section) {
@@ -2374,6 +2391,21 @@ function renderSectionTable(section) {
   
   const canvasId = `chart-${section.toLowerCase()}-sectional`;
   const tableId = `${section.toLowerCase()}-sectional-list`;
+  
+  // Determine color based on section
+  const colorMap = {
+    'VARC': { border: '#e8c97a', bg: 'rgba(232,201,122,0.1)' },
+    'DILR': { border: '#7ab8e8', bg: 'rgba(122,184,232,0.1)' },
+    'Quant': { border: '#7ae8b0', bg: 'rgba(122,232,176,0.1)' }
+  };
+  
+  let colors = colorMap[section];
+  if (!colors) {
+    // Generate consistent color for custom sections based on section name
+    const hash = section.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const hue = (hash * 137.5) % 360;
+    colors = { border: `hsl(${hue}, 70%, 60%)`, bg: `hsla(${hue}, 70%, 60%, 0.1)` };
+  }
   
   // Render chart
   if (sectionScores.length > 0) {
@@ -2384,8 +2416,8 @@ function renderSectionTable(section) {
         datasets: [{
           label: section + ' Scores',
           data: sectionScores.map(s => s.score),
-          borderColor: section === 'VARC' ? '#e8c97a' : section === 'DILR' ? '#7ab8e8' : '#7ae8b0',
-          backgroundColor: section === 'VARC' ? 'rgba(232,201,122,0.1)' : section === 'DILR' ? 'rgba(122,184,232,0.1)' : 'rgba(122,232,176,0.1)',
+          borderColor: colors.border,
+          backgroundColor: colors.bg,
           tension: 0.4,
           pointRadius: 5,
           fill: true,
@@ -2439,13 +2471,22 @@ function cycleSectionalStatus(i) {
 
 function addSectionalScore() {
   const date = document.getElementById('sec-date').value;
-  const section = document.getElementById('sec-section').value;
+  let section = document.getElementById('sec-section').value.trim();
   const num = parseInt(document.getElementById('sec-num').value) || 0;
   const score = parseInt(document.getElementById('sec-score').value) || 0;
   
-  if (!date || num < 1 || score < 0) {
-    alert('Please enter valid date, sectional number, and score (>= 0).');
+  if (!date || !section || num < 1 || score < 0) {
+    alert('Please enter valid date, section name, sectional number, and score (>= 0).');
     return;
+  }
+  
+  // Auto-create section if it doesn't exist
+  const defaultSections = ['VARC', 'DILR', 'Quant'];
+  const allSections = [...defaultSections, ...(S.customSections || [])];
+  
+  if (!allSections.includes(section)) {
+    if (!S.customSections) S.customSections = [];
+    S.customSections.push(section);
   }
   
   const score_obj = {
@@ -2458,7 +2499,7 @@ function addSectionalScore() {
   
   S.sectionalScores.push(score_obj);
   
-  // Auto-mark the sectional as completed in sectional plan
+  // Auto-mark the sectional as completed in sectional plan (if it exists)
   if (S.sectionalPlan) {
     const matchingSectional = S.sectionalPlan.find(plan => 
       plan.date === date && plan.section === section && plan.name.includes(`Sectional ${num}`)
@@ -2472,6 +2513,7 @@ function addSectionalScore() {
   save();
   renderSectionals();
   
+  document.getElementById('sec-section').value = '';
   document.getElementById('sec-num').value = '';
   document.getElementById('sec-score').value = '';
 }
